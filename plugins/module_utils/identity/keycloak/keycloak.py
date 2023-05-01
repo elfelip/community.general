@@ -64,6 +64,14 @@ URL_CLIENT_GROUP_ROLEMAPPINGS_AVAILABLE = "{url}/admin/realms/{realm}/groups/{id
 URL_CLIENT_GROUP_ROLEMAPPINGS_COMPOSITE = "{url}/admin/realms/{realm}/groups/{id}/role-mappings/clients/{client}/composite"
 
 URL_USERS = "{url}/admin/realms/{realm}/users"
+URL_USER = "{url}/admin/realms/{realm}/users/{id}"
+URL_USER_ROLE_MAPPINGS = "{url}/admin/realms/{realm}/users/{id}/role-mappings"
+URL_USER_REALM_ROLE_MAPPINGS = "{url}/admin/realms/{realm}/users/{id}/role-mappings/realm"
+URL_USER_CLIENTS_ROLE_MAPPINGS = "{url}/admin/realms/{realm}/users/{id}/role-mappings/clients"
+URL_USER_CLIENT_ROLE_MAPPINGS = "{url}/admin/realms/{realm}/users/{id}/role-mappings/clients/{client_id}"
+URL_USER_GROUPS = "{url}/admin/realms/{realm}/users/{id}/groups"
+URL_USER_GROUP = "{url}/admin/realms/{realm}/users/{id}/groups/{group_id}"
+
 URL_CLIENT_SERVICE_ACCOUNT_USER = "{url}/admin/realms/{realm}/clients/{id}/service-account-user"
 URL_CLIENT_USER_ROLEMAPPINGS = "{url}/admin/realms/{realm}/users/{id}/role-mappings/clients/{client}"
 URL_CLIENT_USER_ROLEMAPPINGS_AVAILABLE = "{url}/admin/realms/{realm}/users/{id}/role-mappings/clients/{client}/available"
@@ -105,7 +113,7 @@ def keycloak_argument_spec():
         auth_client_id=dict(type='str', default='admin-cli'),
         auth_realm=dict(type='str'),
         auth_client_secret=dict(type='str', default=None, no_log=True),
-        auth_username=dict(type='str', aliases=['username']),
+        auth_username=dict(type='str'),
         auth_password=dict(type='str', aliases=['password'], no_log=True),
         validate_certs=dict(type='bool', default=True),
         connection_timeout=dict(type='int', default=10),
@@ -2375,3 +2383,579 @@ class KeycloakAPI(object):
                             validate_certs=self.validate_certs)
         except Exception as e:
             self.module.fail_json(msg='Could not delete scope %s for client %s in realm %s: %s' % (id, client_id, realm, str(e)))
+
+    def get_user_by_id(self, user_id, realm='master'):
+        """
+        Get a User by its ID.
+        :param user_id: ID of the user.
+        :param realm: Realm
+        :return: Representation of the user.
+        """
+        try:
+            user_url = URL_USER.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id)
+            userrep = json.load(
+                open_url(
+                    user_url,
+                    method='GET',
+                    headers=self.restheaders))
+            return userrep
+        except Exception as e:
+            self.module.fail_json(msg='Could not get user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def search_user_by_username(self, username, realm="master"):
+        """
+        Search a user by its username.
+        :param username: User name to find
+        :return: User representation. An empty dict is returned when role have not been found
+        """
+        try:
+            userrep = None
+            url_search_user_by_username = URL_USERS.format(
+                url=self.baseurl,
+                realm=realm) + '?username=' + username
+            users = json.load(
+                open_url(
+                    url_search_user_by_username,
+                    method='GET',
+                    headers=self.restheaders))
+            for user in users:
+                if user['username'] == username:
+                    userrep = user
+                    break
+            return userrep
+        except Exception as e:
+            self.module.fail_json(msg='Could not search for user %s in realm %s: %s'
+                                      % (username, realm, str(e)))
+
+    def create_user(self, userrep, realm='master'):
+        """
+        Create a new User.
+        :param userrep: Representation of the user to create
+        :param realm: Realm
+        :return: Representation of the user created.
+        """
+        try:
+            users_url = URL_USERS.format(
+                url=self.baseurl,
+                realm=realm)
+            open_url(users_url,
+                     method='POST',
+                     headers=self.restheaders,
+                     data=json.dumps(userrep))
+            created_user = self.search_user_by_username(
+                username=userrep['username'],
+                realm=realm)
+            return created_user
+        except Exception as e:
+            self.module.fail_json(msg='Could not create user %s in realm %s: %s'
+                                      % (userrep['username'], realm, str(e)))
+
+    def update_user(self, userrep, realm='master'):
+        """
+        Update a User.
+        :param userrep: Representation of the user to update. This representation must include the ID of the user.
+        :param realm: Realm
+        :return: Representation of the updated user.
+        """
+        try:
+            user_url = URL_USER.format(
+                url=self.baseurl,
+                realm=realm,
+                id=userrep["id"])
+            open_url(
+                user_url,
+                method='PUT',
+                headers=self.restheaders,
+                data=json.dumps(userrep))
+            updated_user = self.get_user_by_id(
+                user_id=userrep['id'],
+                realm=realm)
+            return updated_user
+        except Exception as e:
+            self.module.fail_json(msg='Could not update user %s in realm %s: %s'
+                                      % (userrep['username'], realm, str(e)))
+
+    def delete_user(self, user_id, realm='master'):
+        """
+        Delete a User.
+        :param user_id: ID of the user to be deleted
+        :param realm: Realm
+        :return: HTTP response.
+        """
+        try:
+            user_url = URL_USER.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id)
+            return open_url(
+                user_url,
+                method='DELETE',
+                headers=self.restheaders)
+        except Exception as e:
+            self.module.fail_json(msg='Could not delete user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def get_user_realm_roles(self, user_id, realm='master'):
+        """
+        Get realm roles for a user.
+        :param user_id: User ID
+        :param realm: Realm
+        :return: Representation of the realm roles.
+        """
+        try:
+            role_mappings_url = URL_USER_ROLE_MAPPINGS.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id)
+            role_mappings = json.load(
+                open_url(
+                    role_mappings_url,
+                    method='GET',
+                    headers=self.restheaders))
+            realm_roles = []
+            for role_mapping in role_mappings["realmMappings"]:
+                realm_roles.append(role_mapping["name"])
+            return realm_roles
+        except Exception as e:
+            self.module.fail_json(msg='Could not get role mappings for user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def get_user_realm_roles_with_id(self, user_id, realm='master'):
+        """
+        Get realm roles for a user.
+        :param user_id: User ID
+        :param realm: Realm
+        :return: Representation of the realm roles.
+        """
+        try:
+            role_mappings_url = URL_USER_ROLE_MAPPINGS.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id)
+            role_mappings = json.load(
+                open_url(
+                    role_mappings_url,
+                    method='GET',
+                    headers=self.restheaders))
+            realm_roles = []
+            for role_mapping in role_mappings["realmMappings"]:
+                realm_roles.append({"id": role_mapping["id"], "name": role_mapping["name"]})
+            return realm_roles
+        except Exception as e:
+            self.module.fail_json(msg='Could not get role mappings for user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def update_user_realm_roles(self, user_id, realm_roles_rep, realm='master'):
+        """
+        Update realm roles for a user.
+        :param user_id: User ID
+        :param realm: Realm
+        :return: Representation of the realm roles.
+        """
+        try:
+            role_mappings_url = URL_USER_REALM_ROLE_MAPPINGS.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id)
+            return open_url(
+                role_mappings_url,
+                method='POST',
+                headers=self.restheaders,
+                data=json.dumps(realm_roles_rep))
+        except Exception as e:
+            self.module.fail_json(msg='Could not update realm role mappings for user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def get_user_client_role_mappings(self, user_id, client_id, realm='master'):
+        """
+        Get client roles for a user.
+        :param user_id: User ID
+        :param realm: Realm
+        :return: Representation of the client roles.
+        """
+        try:
+            client_roles = []
+            role_mappings_url = URL_USER_CLIENT_ROLE_MAPPINGS.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id,
+                client_id=client_id)
+            client_roles = json.load(
+                open_url(
+                    role_mappings_url,
+                    method='GET',
+                    headers=self.restheaders))
+            return client_roles
+        except Exception as e:
+            self.module.fail_json(msg='Could not get role mappings for user %s, client %s in realm %s: %s'
+                                      % (user_id, client_id, realm, str(e)))
+
+    def get_user_client_roles(self, user_id, realm='master', include_id=False):
+        """
+        Get client roles for a user.
+        :param user_id: User ID
+        :param realm: Realm
+        :return: Representation of the client roles.
+        """
+        try:
+            all_client_roles = []
+            clients = self.get_clients(realm=realm)
+            for client in clients:
+                client_roles = self.get_user_client_role_mappings(user_id=user_id, client_id=client["id"], realm=realm)
+                if client_roles:
+                    new_client_role = {}
+                    new_client_role["clientId"] = client["clientId"]
+                    roles = []
+                    for client_mapping in client_roles:
+                        if include_id:
+                            roles.append({"id": client_mapping["id"], "name": client_mapping["name"]})
+                        else:
+                            roles.append(client_mapping["name"])
+                    new_client_role["roles"] = roles
+                    all_client_roles.append(new_client_role)
+            return all_client_roles
+        except Exception as e:
+            self.module.fail_json(msg='Could not get role mappings for user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def get_user_client_roles_with_id(self, user_id, realm='master'):
+        """
+        Get client roles for a user.
+        :param user_id: User ID
+        :param realm: Realm
+        :return: Representation of the client roles.
+        """
+        self.get_user_client_roles(user_id=user_id, realm=realm, include_id=True)
+
+    def delete_user_realm_roles(self, user_id, roles=None, realm='master'):
+        """
+        Delete client roles for a user.
+        :param user_id: User ID
+        :param roles: List of role to delete from mappings. If None, all realm role mappings for the user will be deleted.
+        :param realm: Realm
+        :return: HTTP Response.
+        """
+        try:
+            role_mappings_url = URL_USER_REALM_ROLE_MAPPINGS.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id)
+            if roles is not None:
+                return open_url(
+                    role_mappings_url,
+                    method='DELETE',
+                    headers=self.restheaders,
+                    data=json.dumps(roles))
+            else:
+                return open_url(
+                    role_mappings_url,
+                    method='DELETE',
+                    headers=self.restheaders)
+        except Exception as e:
+            self.module.fail_json(msg='Could not delete realm role mappings for user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def delete_user_realm_role(self, user_id, role, realm='master'):
+        """
+        Delete one client role for a user.
+        :param user_id: User ID
+        :param client_id: Client ID for client roles to delete.
+        :param role: Representation of the role to delete
+        :param realm: Realm
+        :return: HTTP Response.
+        """
+        try:
+            roles = []
+            roles.add(role)
+            return self.delete_user_realm_roles(
+                user_id=user_id,
+                roles=roles,
+                realm=realm)
+        except Exception as e:
+            self.module.fail_json(msg='Could not delete client role mappings for role %s, user %s in realm %s: %s'
+                                      % (role["id"], user_id, realm, str(e)))
+
+    def delete_user_client_roles(self, user_id, client_id, roles=None, realm='master'):
+        """
+        Delete client roles for a user.
+        :param user_id: User ID
+        :param client_id: Client ID for client roles to delete.
+        :param roles: List of role to delete from mappings. If None, all role mappings for the client will be deleted.
+        :param realm: Realm
+        :return: HTTP Response.
+        """
+        try:
+            role_mappings_url = URL_USER_CLIENT_ROLE_MAPPINGS.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id,
+                client_id=client_id)
+            if roles is not None:
+                return open_url(
+                    role_mappings_url,
+                    method='DELETE',
+                    headers=self.restheaders,
+                    data=json.dumps(roles))
+            else:
+                return open_url(
+                    role_mappings_url,
+                    method='DELETE',
+                    headers=self.restheaders)
+        except Exception as e:
+            self.module.fail_json(msg='Could not delete client role mappings for user %s, client %s in realm %s: %s'
+                                      % (user_id, client_id, realm, str(e)))
+
+    def delete_user_client_role(self, user_id, client_id, role, realm='master'):
+        """
+        Delete one client role for a user.
+        :param user_id: User ID
+        :param client_id: Client ID for client roles to delete.
+        :param role: Representation of the role to delete
+        :param realm: Realm
+        :return: HTTP Response.
+        """
+        try:
+            roles = []
+            roles.append(role)
+            return self.delete_user_client_roles(
+                user_id=user_id,
+                client_id=client_id,
+                roles=roles,
+                realm=realm)
+        except Exception as e:
+            self.module.fail_json(msg='Could not delete client role mappings for client %s, role %s, user %s in realm %s: %s'
+                                      % (client_id, role["id"], user_id, realm, str(e)))
+
+    def create_user_client_roles(self, user_id, client_id, roles_to_assing, realm='master'):
+        """
+        Delete client roles for a user.
+        :param user_id: User ID
+        :param client_id: Client ID for client roles to create.
+        :param roles_to_assing: Representation of the client roles to create.
+        :param realm: Realm
+        :return: HTTP Response.
+        """
+        try:
+            role_mappings_url = URL_USER_CLIENT_ROLE_MAPPINGS.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id,
+                client_id=client_id)
+            return open_url(
+                role_mappings_url,
+                method='POST',
+                headers=self.restheaders,
+                data=json.dumps(roles_to_assing))
+        except Exception as e:
+            self.module.fail_json(msg='Could not create client role mappings for user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def get_user_groups(self, user_id, realm='master'):
+        """
+        Get groups for a user.
+        :param user_id: User ID
+        :param realm: Realm
+        :return: Representation of the client groups.
+        """
+        try:
+            groups = []
+            user_groups_url = URL_USER_GROUPS.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id)
+            user_groups = json.load(
+                open_url(
+                    user_groups_url,
+                    method='GET',
+                    headers=self.restheaders))
+            for user_group in user_groups:
+                groups.append(user_group["name"])
+            return groups
+        except Exception as e:
+            self.module.fail_json(msg='Could not get groups for user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def add_user_in_group(self, user_id, group_id, realm='master'):
+        """
+        Add a user to a group.
+        :param user_id: User ID
+        :param group_id: Group Id to add the user to.
+        :param realm: Realm
+        :return: HTTP Response
+        """
+        try:
+            user_group_url = URL_USER_GROUP.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id,
+                group_id=group_id)
+            return open_url(
+                user_group_url,
+                method='PUT',
+                headers=self.restheaders)
+        except Exception as e:
+            self.module.fail_json(msg='Could not add user %s in group %s in realm %s: %s'
+                                      % (user_id, group_id, realm, str(e)))
+
+    def remove_user_from_group(self, user_id, group_id, realm='master'):
+        """
+        Remove a user from a group for a user.
+        :param user_id: User ID
+        :param group_id: Group Id to add the user to.
+        :param realm: Realm
+        :return: HTTP response
+        """
+        try:
+            user_group_url = URL_USER_GROUP.format(
+                url=self.baseurl,
+                realm=realm,
+                id=user_id,
+                group_id=group_id)
+            return open_url(
+                user_group_url,
+                method='DETETE',
+                headers=self.restheaders)
+        except Exception as e:
+            self.module.fail_json(msg='Could not remove user %s from group %s in realm %s: %s'
+                                      % (user_id, group_id, realm, str(e)))
+
+    def assing_realm_roles_to_user(self, user_id, roles, realm='master'):
+        """
+        Assign roles to a user.
+        :param user_id: user ID to whom assign roles.
+        :param roles: Realm roles to assign to user.
+        :param realm: Realm
+        :return: True is user's role have changed, False otherwise.
+        """
+        try:
+            # Get the new created user realm roles
+            new_user_realm_roles = self.get_user_realm_roles(
+                user_id=user_id,
+                realm=realm)
+            changed = False
+            # Assign Realm Roles
+            realm_roles_rep = []
+            # Get all realm roles
+            all_realm_roles = self.get_realm_roles(realm=realm)
+            for realm_role in roles:
+                # Look for existing role into user representation
+                if realm_role not in new_user_realm_roles:
+                    roleid = None
+                    # Find the role id
+                    for role in all_realm_roles:
+                        if role["name"] == realm_role:
+                            roleid = role["id"]
+                            break
+                    if roleid is not None:
+                        realm_role_rep = {}
+                        realm_role_rep["id"] = roleid
+                        realm_role_rep["name"] = realm_role
+                        realm_roles_rep.append(realm_role_rep)
+            if len(realm_roles_rep) > 0:
+                # Assign Role
+                self.update_user_realm_roles(
+                    user_id=user_id,
+                    realm_roles_rep=realm_roles_rep,
+                    realm=realm)
+                changed = True
+            return changed
+        except Exception as e:
+            self.module.fail_json(msg='Could not assign realm roles to user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def assing_client_roles_to_user(self, user_id, roles, realm='master'):
+        """
+        Assign roles to a user.
+        :param user_id: user ID to whom assign roles.
+        :param roles: Client roles to assign to user.
+        :param realm: Realm
+        :return: True is user's role have changed, False otherwise.
+        """
+        try:
+            # Get the new created user client roles
+            user_existing_client_roles = self.get_user_client_roles(
+                user_id=user_id,
+                realm=realm)
+            changed = False
+            # Assign clients roles if they need changes
+            if len(roles) > 0:
+                for role in roles:
+                    # Get the client roles
+                    client = self.get_client_by_clientid(
+                        client_id=role["client_id"],
+                        realm=realm)
+                    if client is None:
+                        self.module.fail_json(
+                            msg='Could not assign client roles to user %s in realm %s: client %s not found' % (user_id, realm, role["client_id"]))
+                    cid = client['id']
+                    client_id = client['clientId']
+                    client_roles = self.get_client_roles(
+                        clientid=client_id,
+                        realm=realm)                    
+                    if client_roles == {}:
+                        self.module.fail_json(
+                            msg='Could not assign client roles to user %s in realm %s: client %s does not have roles' % (user_id, realm, role["client_id"]))
+                    roles_to_assing = []
+                    for role_to_assing in role["roles"]:
+                        new_role = {}
+                        role_alrealy_assigned = False
+                        for user_existing_client_role in user_existing_client_roles:
+                            if user_existing_client_role['clientId'] == client_id and role_to_assing in user_existing_client_role['roles']:
+                                role_alrealy_assigned = True
+                        # Find his Id
+                        for client_role in client_roles:
+                            if client_role["name"] == role_to_assing and not role_alrealy_assigned:
+                                new_role["id"] = client_role["id"]
+                                new_role["name"] = role_to_assing
+                                roles_to_assing.append(new_role)
+                    if len(roles_to_assing) > 0:
+                        # Delete exiting client Roles
+                        self.delete_user_client_roles(
+                            user_id=user_id,
+                            client_id=cid,
+                            realm=realm)
+                        # Assign Role
+                        self.create_user_client_roles(
+                            user_id=user_id,
+                            client_id=cid,
+                            roles_to_assing=roles_to_assing,
+                            realm=realm)
+                        changed = True
+            return changed
+        except Exception as e:
+            self.module.fail_json(msg='Could not assign roles to user %s in realm %s: %s'
+                                      % (user_id, realm, str(e)))
+
+    def update_user_groups_membership(self, userrep, realm='master'):
+        """
+        Update user's group membership
+        :param userrep: Representation of the user. This representation must include the ID.
+        :param realm: Realm
+        :return: True if group membership has been changed. False Otherwise.
+        """
+        changed = False
+        try:
+            new_user_groups = self.get_user_groups(
+                user_id=userrep['id'],
+                realm=realm)
+            # If group membership need to be changed
+            if not is_struct_included(userrep["groups"], new_user_groups):
+                # Set user groups
+                if "groups" in userrep and userrep['groups'] is not None:
+                    for user_groups in userrep["groups"]:
+                        # Get groups Available
+                        groups = self.get_groups(realm=realm)
+                        for group in groups:
+                            if "name" in group and group["name"] == user_groups:
+                                self.add_user_in_group(
+                                    user_id=userrep["id"],
+                                    group_id=group["id"],
+                                    realm=realm)
+                                changed = True
+            return changed
+        except Exception as e:
+            raise e
