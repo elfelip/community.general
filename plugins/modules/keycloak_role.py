@@ -79,16 +79,18 @@ options:
             - Values may be single values (e.g. a string) or a list of strings.
     composite:
         description:
-            - If true, the role is a composition of other realm and/or client role.
+            - If C(true), the role is a composition of other realm and/or client role.
         default: false
         type: bool
+        version_added: 7.0.0
     composites:
         description:
             - List of roles to include to the composite realm role.
-            - If the composite role is a client role, the clientId (not id of the client) must be specified.
+            - If the composite role is a client role, the C(clientId) (not ID of the client) must be specified.
         default: []
         type: list
         elements: dict
+        version_added: 7.0.0
         suboptions:
             name:
                 description:
@@ -98,7 +100,7 @@ options:
             client_id:
                 description:
                     - Client ID if the role is a client role. Do not include this option for a REALM role.
-                    - Use the client id we can see in the Keycloak console, not the technical id of the client.
+                    - Use the client ID you can see in the Keycloak console, not the technical ID of the client.
                 type: str
                 required: false
                 aliases:
@@ -232,7 +234,7 @@ end_state:
 '''
 
 from ansible_collections.community.general.plugins.module_utils.identity.keycloak.keycloak import KeycloakAPI, camel, \
-    keycloak_argument_spec, get_token, KeycloakError
+    keycloak_argument_spec, get_token, KeycloakError, is_struct_included
 from ansible.module_utils.basic import AnsibleModule
 import copy
 
@@ -312,12 +314,7 @@ def main():
         new_param_value = module.params.get(param)
         old_value = before_role[param] if param in before_role else None
         if new_param_value != old_value:
-            if isinstance(param, dict):
-                changeset[camel(param)] = copy.deepcopy(new_param_value)
-            elif isinstance(param, list):
-                changeset[camel(param)] = new_param_value.copy()
-            else:
-                changeset[camel(param)] = new_param_value
+            changeset[camel(param)] = copy.deepcopy(new_param_value)
 
     # Prepare the desired values using the existing values (non-existence results in a dict that is save to use as a basis)
     desired_role = copy.deepcopy(before_role)
@@ -364,10 +361,25 @@ def main():
 
     else:
         if state == 'present':
+            compare_exclude = []
+            if 'composites' in desired_role and isinstance(desired_role['composites'], list) and len(desired_role['composites']) > 0:
+                composites = kc.get_role_composites(rolerep=before_role, clientid=clientid, realm=realm)
+                before_role['composites'] = []
+                for composite in composites:
+                    before_composite = {}
+                    if composite['clientRole']:
+                        composite_client = kc.get_client_by_id(id=composite['containerId'])
+                        before_composite['client_id'] = composite_client['clientId']
+                    else:
+                        before_composite['client_id'] = None
+                    before_composite['name'] = composite['name']
+                    before_composite['state'] = 'present'
+                    before_role['composites'].append(before_composite)
+            else:
+                compare_exclude.append('composites')
             # Process an update
-
             # no changes
-            if desired_role == before_role:
+            if is_struct_included(desired_role, before_role, exclude=compare_exclude):
                 result['changed'] = False
                 result['end_state'] = desired_role
                 result['msg'] = "No changes required to role {name}.".format(name=name)
