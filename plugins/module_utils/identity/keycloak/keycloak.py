@@ -133,7 +133,8 @@ class KeycloakError(Exception):
 
 def get_token(module_params):
     """ Obtains connection header with token for the authentication,
-        token already given or obtained from credentials
+        token already given or obtained from credentials.
+        If auth_username and auth_password are not None, grant type will be set to password, otherwise it will be set to client_cedentials
         :param module_params: parameters of the module
         :return: connection header
     """
@@ -154,8 +155,11 @@ def get_token(module_params):
         client_secret = module_params.get('auth_client_secret')
         connection_timeout = module_params.get('connection_timeout')
         auth_url = URL_TOKEN.format(url=base_url, realm=auth_realm)
+        grant_type = 'password'
+        if auth_username is None or auth_password is None:
+            grant_type = 'client_credentials'
         temp_payload = {
-            'grant_type': 'password',
+            'grant_type': grant_type,
             'client_id': client_id,
             'client_secret': client_secret,
             'username': auth_username,
@@ -186,7 +190,7 @@ def get_token(module_params):
         'Content-Type': 'application/json'
     }
 
-
+    
 def is_struct_included(struct1, struct2, exclude=None):
     """
     This function compare if the first parameter structure is included in the second.
