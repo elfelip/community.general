@@ -218,7 +218,7 @@ EXAMPLES = """
   community.general.terraform:
     project_path: '{{ project_dir }}'
     state: present
-    camplex_vars: true
+    complex_vars: true
     variables:
       vm_name: "{{ inventory_hostname }}"
       vm_vcpus: 2
@@ -315,7 +315,7 @@ def _state_args(state_file):
     if not state_file:
         return []
     if not os.path.exists(state_file):
-        module.warn(msg='Could not find state_file "{0}", the process will not destroy any resources, please check your state file path.'.format(state_file))
+        module.warn('Could not find state_file "{0}", the process will not destroy any resources, please check your state file path.'.format(state_file))
     return ['-state', state_file]
 
 
