@@ -9,6 +9,10 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> df8b90da (Remove ANSIBLE_METADATA and override aliases for auth_username argument spec)
 DOCUMENTATION = '''
 ---
 module: keycloak_user
