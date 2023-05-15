@@ -9,10 +9,6 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 
-<<<<<<< HEAD
-
-=======
->>>>>>> inspq_keycloak_user_module
 DOCUMENTATION = '''
 ---
 module: keycloak_user
@@ -22,9 +18,6 @@ description:
 version_added: 7.0.0
 options:
     auth_username:
-        description:
-            - Username to authenticate for API access with.
-        type: str
         aliases: []
     realm:
         description:
@@ -215,7 +208,7 @@ options:
         type: str
     force:
         description:
-            - If true, allows to remove user and recreate it.
+            - If C(true), allows to remove user and recreate it.
         type: bool
         default: false
 extends_documentation_fragment:
@@ -292,10 +285,15 @@ EXAMPLES = '''
         - name: group1
           state: present
     state: present
-    force: yes
+    force: true
 
+<<<<<<< HEAD
 - name: Remove User.
     community.general.keycloak_user:
+=======
+- name: Remove User
+  community.general.keycloak_user:
+>>>>>>> inspq_keycloak_user_module
     auth_keycloak_url: http://localhost:8080/auth
     auth_username: admin
     auth_password: password
@@ -326,10 +324,7 @@ import copy
 
 def main():
     argument_spec = keycloak_argument_spec()
-    keycloak_override_spec = dict(
-        auth_username=dict(type='str', aliases=[]),
-    )
-    argument_spec.update(keycloak_override_spec)
+    argument_spec['auth_username']['aliases'] = []
     credential_spec = dict(
         type=dict(type='str', required=True),
         value=dict(type='str', required=True),
