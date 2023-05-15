@@ -1786,7 +1786,7 @@ class KeycloakAPI(object):
                 existing_composite_client = None
                 for existing_composite in existing_composites:
                     if existing_composite["clientRole"]:
-                        existing_composite_client = self.get_client_by_id(existing_composite["containerId"])
+                        existing_composite_client = self.get_client_by_id(existing_composite["containerId"], realm=realm)
                         if ("client_id" in composite
                                 and composite['client_id'] is not None
                                 and existing_composite_client["clientId"] == composite["client_id"]
@@ -1806,7 +1806,7 @@ class KeycloakAPI(object):
                                 composites_to_be_created.append(client_role)
                                 break
                     else:
-                        realm_role = self.get_realm_role(name=composite["name"])
+                        realm_role = self.get_realm_role(name=composite["name"], realm=realm)
                         composites_to_be_created.append(realm_role)
                 elif composite_found and 'state' in composite and composite['state'] == 'absent':
                     if "client_id" in composite and composite['client_id'] is not None:
@@ -1816,7 +1816,7 @@ class KeycloakAPI(object):
                                 composites_to_be_deleted.append(client_role)
                                 break
                     else:
-                        realm_role = self.get_realm_role(name=composite["name"])
+                        realm_role = self.get_realm_role(name=composite["name"], realm=realm)
                         composites_to_be_deleted.append(realm_role)
 
             if len(composites_to_be_created) > 0:
