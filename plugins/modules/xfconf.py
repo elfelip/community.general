@@ -181,6 +181,7 @@ class XFConfProperty(StateModuleHelper):
     change_params = ('value', )
     diff_params = ('value', )
     output_params = ('property', 'channel', 'value')
+    facts_params = ('property', 'channel', 'value')
     module = dict(
         argument_spec=dict(
             state=dict(type='str', choices=("present", "absent"), default="present"),
@@ -203,12 +204,15 @@ class XFConfProperty(StateModuleHelper):
 
     default_state = 'present'
 
+    def update_xfconf_output(self, **kwargs):
+        self.update_vars(meta={"output": True, "fact": True}, **kwargs)
+
     def __init_module__(self):
         self.runner = xfconf_runner(self.module)
         self.does_not = 'Property "{0}" does not exist on channel "{1}".'.format(self.vars.property,
                                                                                  self.vars.channel)
-        self.vars.set('previous_value', self._get())
-        self.vars.set('type', self.vars.value_type)
+        self.vars.set('previous_value', self._get(), fact=True)
+        self.vars.set('type', self.vars.value_type, fact=True)
         self.vars.meta('value').set(initial_value=self.vars.previous_value)
 
         if self.vars.disable_facts is False:

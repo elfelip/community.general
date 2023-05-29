@@ -154,11 +154,28 @@ import numbers
 
 from ansible.module_utils.common.text.converters import to_native
 
-from ansible_collections.community.general.plugins.module_utils.module_helper import StateModuleHelper
-from ansible_collections.community.general.plugins.module_utils.snap import snap_runner
+from ansible_collections.community.general.plugins.module_utils.module_helper import (
+    CmdStateModuleHelper, ArgFormat
+)
 
 
-class Snap(StateModuleHelper):
+__state_map = dict(
+    present='install',
+    absent='remove',
+    enabled='enable',
+    disabled='disable',
+    info='info',  # not public
+    list='list',  # not public
+    set='set',  # not public
+    get='get',  # not public
+)
+
+
+def _state_map(value):
+    return [__state_map[value]]
+
+
+class Snap(CmdStateModuleHelper):
     __disable_re = re.compile(r'(?:\S+\s+){5}(?P<notes>\S+)')
     __set_param_re = re.compile(r'(?P<snap_prefix>\S+:)?(?P<key>\S+)\s*=\s*(?P<value>.+)')
     module = dict(
@@ -172,6 +189,16 @@ class Snap(StateModuleHelper):
         },
         supports_check_mode=True,
     )
+    command = "snap"
+    command_args_formats = dict(
+        actionable_snaps=dict(fmt=lambda v: v),
+        state=dict(fmt=_state_map),
+        classic=dict(fmt="--classic", style=ArgFormat.BOOLEAN),
+        channel=dict(fmt=lambda v: [] if v == 'stable' else ['--channel', '{0}'.format(v)]),
+        options=dict(fmt=list),
+        json_format=dict(fmt="-d", style=ArgFormat.BOOLEAN),
+    )
+    check_rc = False
 
     @staticmethod
     def _first_non_zero(a):
@@ -181,35 +208,18 @@ class Snap(StateModuleHelper):
 
         return 0
 
-    def __init_module__(self):
-        self.runner = snap_runner(self.module)
-
-    def _run_multiple_commands(self, commands, actionable_names, bundle=True):
-        results_cmd = []
-        results_rc = []
-        results_out = []
-        results_err = []
-
-        with self.runner(commands + ["name"]) as ctx:
-            if bundle:
-                rc, out, err = ctx.run(name=actionable_names)
-                results_cmd.append(commands + actionable_names)
-                results_rc.append(rc)
-                results_out.append(out)
-                results_err.append(err)
-            else:
-                for name in actionable_names:
-                    rc, out, err = ctx.run(name=name)
-                    results_cmd.append(commands + [name])
-                    results_rc.append(rc)
-                    results_out.append(out)
-                    results_err.append(err)
+    def _run_multiple_commands(self, commands):
+        outputs = [(c,) + self.run_command(params=c) for c in commands]
+        results = ([], [], [], [])
+        for output in outputs:
+            for i in range(4):
+                results[i].append(output[i])
 
         return [
-            '; '.join([to_native(x) for x in results_cmd]),
-            self._first_non_zero(results_rc),
-            '\n'.join(results_out),
-            '\n'.join(results_err),
+            '; '.join([to_native(x) for x in results[0]]),
+            self._first_non_zero(results[1]),
+            '\n'.join(results[2]),
+            '\n'.join(results[3]),
         ]
 
     def convert_json_subtree_to_map(self, json_subtree, prefix=None):
@@ -235,8 +245,8 @@ class Snap(StateModuleHelper):
         return self.convert_json_subtree_to_map(json_object)
 
     def retrieve_option_map(self, snap_name):
-        with self.runner("get name") as ctx:
-            rc, out, err = ctx.run(name=snap_name)
+        params = [{'state': 'get'}, {'name': snap_name}, {'json_format': True}]
+        rc, out, err = self.run_command(params=params)
 
         if rc != 0:
             return {}
@@ -256,12 +266,10 @@ class Snap(StateModuleHelper):
         return option_map
 
     def is_snap_installed(self, snap_name):
-        rc, dummy, dummy = self.runner("_list name").run(name=snap_name)
-        return rc == 0
+        return 0 == self.run_command(params=[{'state': 'list'}, {'name': snap_name}])[0]
 
     def is_snap_enabled(self, snap_name):
-        with self.runner("_list name") as ctx:
-            rc, out, err = ctx.run(name=snap_name)
+        rc, out, err = self.run_command(params=[{'state': 'list'}, {'name': snap_name}])
         if rc != 0:
             return None
         result = out.splitlines()[1]
@@ -275,7 +283,7 @@ class Snap(StateModuleHelper):
         self.changed = True
         self.vars.snaps_installed = actionable_snaps
 
-        if self.check_mode:
+        if self.module.check_mode:
             return
 
         params = ['state', 'classic', 'channel']  # get base cmd parts
@@ -283,9 +291,10 @@ class Snap(StateModuleHelper):
         has_multiple_snaps = len(actionable_snaps) > 1
 
         if has_one_pkg_params and has_multiple_snaps:
-            self.vars.cmd, rc, out, err = self._run_multiple_commands(params, actionable_snaps, bundle=False)
+            commands = [params + [{'actionable_snaps': [s]}] for s in actionable_snaps]
         else:
-            self.vars.cmd, rc, out, err = self._run_multiple_commands(params, actionable_snaps)
+            commands = [params + [{'actionable_snaps': actionable_snaps}]]
+        self.vars.cmd, rc, out, err = self._run_multiple_commands(commands)
 
         if rc == 0:
             return
@@ -351,9 +360,11 @@ class Snap(StateModuleHelper):
             if options_changed:
                 self.changed = True
 
-                if not self.check_mode:
-                    with self.runner("_set name options") as ctx:
-                        rc, out, err = ctx.run(name=snap_name, options=options_changed)
+                if not self.module.check_mode:
+                    params = [{'state': 'set'}, {'name': snap_name}, {'options': options_changed}]
+
+                    rc, out, err = self.run_command(params=params)
+
                     if rc != 0:
                         if 'has no "configure" hook' in err:
                             msg = "Snap '{snap}' does not have any configurable options".format(snap=snap_name)
@@ -372,11 +383,12 @@ class Snap(StateModuleHelper):
             return
         self.changed = True
         self.vars[actionable_var] = actionable_snaps
-        if self.check_mode:
+        if self.module.check_mode:
             return
         if params is None:
             params = ['state']
-        self.vars.cmd, rc, out, err = self._run_multiple_commands(params, actionable_snaps)
+        commands = [params + [{'actionable_snaps': actionable_snaps}]]
+        self.vars.cmd, rc, out, err = self._run_multiple_commands(commands)
         if rc == 0:
             return
         msg = "Ooops! Snap operation failed while executing '{cmd}', please examine logs and " \

@@ -66,8 +66,6 @@ options:
             - Type C(macvlan) is added in community.general 6.6.0.
             - Type C(wireguard) is added in community.general 4.3.0.
             - Type C(vpn) is added in community.general 5.1.0.
-            - Using C(bond-slave), C(bridge-slave) or C(team-slave) implies C(ethernet) connection type with corresponding I(slave_type) option.
-            - If you want to control non-ethernet connection attached to C(bond), C(bridge) or C(team) consider using C(slave_type) option.
         type: str
         choices: [ bond, bond-slave, bridge, bridge-slave, dummy, ethernet, generic, gre, infiniband, ipip, macvlan, sit, team, team-slave, vlan, vxlan,
             wifi, gsm, wireguard, vpn ]
@@ -83,16 +81,9 @@ options:
         type: str
         choices: [ datagram, connected ]
         version_added: 5.8.0
-    slave_type:
-        description:
-            - Type of the device of this slave's master connection (for example C(bond)).
-        type: str
-        choices: [ 'bond', 'bridge', 'team' ]
-        version_added: 7.0.0
     master:
         description:
             - Master <master (ifname, or connection UUID or conn_name) of bridge, team, bond master connection profile.
-            - Mandatory if I(slave_type) is defined.
         type: str
     ip4:
         description:
@@ -406,9 +397,9 @@ options:
         description:
             - This is only used with 'bridge-slave' - 'hairpin mode' for the slave, which allows frames to be sent back out through the slave the
               frame was received on.
-            - The default change to C(false) in community.general 7.0.0. It used to be C(true) before.
+            - The default value is C(true), but that is being deprecated
+              and it will be changed to C(false) in community.general 7.0.0.
         type: bool
-        default: false
     runner:
         description:
             - This is the type of device or network connection that you wish to create for a team.
@@ -1438,39 +1429,6 @@ EXAMPLES = r'''
     autoconnect: false
     state: present
 
-## Creating bond attached to bridge example
-- name: Create bond attached to bridge
-  community.general.nmcli:
-    type: bond
-    conn_name: bond0
-    slave_type: bridge
-    master: br0
-    state: present
-
-- name: Create master bridge
-  community.general.nmcli:
-    type: bridge
-    conn_name: br0
-    method4: disabled
-    method6: disabled
-    state: present
-
-## Creating vlan connection attached to bridge
-- name: Create master bridge
-  community.general.nmcli:
-    type: bridge
-    conn_name: br0
-    state: present
-
-- name: Create VLAN 5
-  community.general.nmcli:
-    type: vlan
-    conn_name: eth0.5
-    slave_type: bridge
-    master: br0
-    vlandev: eth0
-    vlanid: 5
-    state: present
 '''
 
 RETURN = r"""#
@@ -1517,7 +1475,6 @@ class Nmcli(object):
         self.ignore_unsupported_suboptions = module.params['ignore_unsupported_suboptions']
         self.autoconnect = module.params['autoconnect']
         self.conn_name = module.params['conn_name']
-        self.slave_type = module.params['slave_type']
         self.master = module.params['master']
         self.ifname = module.params['ifname']
         self.type = module.params['type']
@@ -1562,7 +1519,8 @@ class Nmcli(object):
         self.hellotime = module.params['hellotime']
         self.maxage = module.params['maxage']
         self.ageingtime = module.params['ageingtime']
-        self.hairpin = module.params['hairpin']
+        # hairpin should be back to normal in 7.0.0
+        self._hairpin = module.params['hairpin']
         self.path_cost = module.params['path_cost']
         self.mac = module.params['mac']
         self.runner = module.params['runner']
@@ -1613,13 +1571,17 @@ class Nmcli(object):
 
         self.edit_commands = []
 
-        self.extra_options_validation()
-
-    def extra_options_validation(self):
-        """ Additional validation of options set passed to module that cannot be implemented in module's argspecs. """
-        if self.type not in ("bridge-slave", "team-slave", "bond-slave"):
-            if self.master is None and self.slave_type is not None:
-                self.module.fail_json(msg="'master' option is required when 'slave_type' is specified.")
+    @property
+    def hairpin(self):
+        if self._hairpin is None:
+            self.module.deprecate(
+                "Parameter 'hairpin' default value will change from true to false in community.general 7.0.0. "
+                "Set the value explicitly to suppress this warning.",
+                version='7.0.0', collection_name='community.general',
+            )
+            # Should be False in 7.0.0 but then that should be in argument_specs
+            self._hairpin = True
+        return self._hairpin
 
     def execute_command(self, cmd, use_unsafe_shell=False, data=None):
         if isinstance(cmd, list):
@@ -1685,7 +1647,6 @@ class Nmcli(object):
         if self.slave_conn_type:
             options.update({
                 'connection.master': self.master,
-                'connection.slave-type': self.slave_type,
             })
 
         # Options specific to a connection type.
@@ -1701,17 +1662,9 @@ class Nmcli(object):
                 'xmit_hash_policy': self.xmit_hash_policy,
             })
         elif self.type == 'bond-slave':
-            if self.slave_type and self.slave_type != 'bond':
-                self.module.fail_json(msg="Connection type '%s' cannot be combined with '%s' slave-type. "
-                                          "Allowed slave-type for '%s' is 'bond'."
-                                          % (self.type, self.slave_type, self.type)
-                                      )
-            if not self.slave_type:
-                self.module.warn("Connection 'slave-type' property automatically set to 'bond' "
-                                 "because of using 'bond-slave' connection type.")
-                options.update({
-                    'connection.slave-type': 'bond',
-                })
+            options.update({
+                'connection.slave-type': 'bond',
+            })
         elif self.type == 'bridge':
             options.update({
                 'bridge.ageing-time': self.ageingtime,
@@ -1735,36 +1688,16 @@ class Nmcli(object):
                     'team.runner-fast-rate': self.runner_fast_rate,
                 })
         elif self.type == 'bridge-slave':
-            if self.slave_type and self.slave_type != 'bridge':
-                self.module.fail_json(msg="Connection type '%s' cannot be combined with '%s' slave-type. "
-                                          "Allowed slave-type for '%s' is 'bridge'."
-                                          % (self.type, self.slave_type, self.type)
-                                      )
-            if not self.slave_type:
-                self.module.warn("Connection 'slave-type' property automatically set to 'bridge' "
-                                 "because of using 'bridge-slave' connection type.")
-                options.update({'connection.slave-type': 'bridge'})
-            self.module.warn(
-                "Connection type as 'bridge-slave' implies 'ethernet' connection with 'bridge' slave-type. "
-                "Consider using slave_type='bridge' with necessary type."
-            )
             options.update({
+                'connection.slave-type': 'bridge',
                 'bridge-port.path-cost': self.path_cost,
                 'bridge-port.hairpin-mode': self.hairpin,
                 'bridge-port.priority': self.slavepriority,
             })
         elif self.type == 'team-slave':
-            if self.slave_type and self.slave_type != 'team':
-                self.module.fail_json(msg="Connection type '%s' cannot be combined with '%s' slave-type. "
-                                          "Allowed slave-type for '%s' is 'team'."
-                                          % (self.type, self.slave_type, self.type)
-                                      )
-            if not self.slave_type:
-                self.module.warn("Connection 'slave-type' property automatically set to 'team' "
-                                 "because of using 'team-slave' connection type.")
-                options.update({
-                    'connection.slave-type': 'team',
-                })
+            options.update({
+                'connection.slave-type': 'team',
+            })
         elif self.tunnel_conn_type:
             options.update({
                 'ip-tunnel.local': self.ip_tunnel_local,
@@ -1949,12 +1882,6 @@ class Nmcli(object):
     @property
     def slave_conn_type(self):
         return self.type in (
-            'ethernet',
-            'bridge',
-            'bond',
-            'vlan',
-            'team',
-            'wifi',
             'bond-slave',
             'bridge-slave',
             'team-slave',
@@ -2118,6 +2045,9 @@ class Nmcli(object):
             if value is not None:
                 if key in self.SECRET_OPTIONS:
                     self.edit_commands += ['set %s %s' % (key, value)]
+                    continue
+                if key == 'xmit_hash_policy':
+                    cmd.extend(['+bond.options', 'xmit_hash_policy=%s' % value])
                     continue
                 cmd.extend([key, value])
 
@@ -2346,7 +2276,6 @@ def main():
             state=dict(type='str', required=True, choices=['absent', 'present']),
             conn_name=dict(type='str', required=True),
             master=dict(type='str'),
-            slave_type=dict(type='str', choices=['bond', 'bridge', 'team']),
             ifname=dict(type='str'),
             type=dict(type='str',
                       choices=[
@@ -2440,7 +2369,7 @@ def main():
             hellotime=dict(type='int', default=2),
             maxage=dict(type='int', default=20),
             ageingtime=dict(type='int', default=300),
-            hairpin=dict(type='bool', default=False),
+            hairpin=dict(type='bool'),
             path_cost=dict(type='int', default=100),
             # team specific vars
             runner=dict(type='str', default='roundrobin',
@@ -2503,7 +2432,7 @@ def main():
         if nmcli.runner_fast_rate is not None and nmcli.runner != "lacp":
             nmcli.module.fail_json(msg="runner-fast-rate is only allowed for runner lacp")
     # team-slave checks
-    if nmcli.type == 'team-slave' or nmcli.slave_type == 'team':
+    if nmcli.type == 'team-slave':
         if nmcli.master is None:
             nmcli.module.fail_json(msg="Please specify a name for the master when type is %s" % nmcli.type)
         if nmcli.ifname is None:
