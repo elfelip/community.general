@@ -15,7 +15,7 @@ module: keycloak_user
 short_description: Create and configure a user in Keycloak
 description:
     - This module creates, removes, or updates Keycloak users.
-version_added: 7.0.0
+version_added: 7.1.0
 options:
     auth_username:
         aliases: []
@@ -95,7 +95,7 @@ options:
                     - clientId
             roles:
                 description:
-                    - List of client roles to assign to the user
+                    - List of client roles to assign to the user.
                 type: list
                 required: true
                 elements: str
@@ -108,11 +108,11 @@ options:
         suboptions:
             name:
                 description:
-                    - Name of the group
+                    - Name of the group.
                 type: str
             state:
                 description:
-                    - Control if the user must be member of this group or not
+                    - Control whether the user must be member of this group or not.
                 choices: [ "present", "absent" ]
                 default: present
                 type: str
@@ -125,17 +125,17 @@ options:
         suboptions:
             type:
                 description:
-                    - Credential type
+                    - Credential type.
                 type: str
                 required: true
             value:
                 description:
-                    - Value of the credential
+                    - Value of the credential.
                 type: str
                 required: true
             temporary:
                 description:
-                    - If true, the users require to reset this credentials at next logon.
+                    - If C(true), the users are required to reset their credentials at next login.
                 type: bool
                 default: false
     required_actions:
@@ -163,16 +163,16 @@ options:
         suboptions:
             name:
                 description:
-                    - Name of the attributes
+                    - Name of the attribute.
                 type: str
             values:
                 description:
-                    - Values for the attribute as list
+                    - Values for the attribute as list.
                 type: list
                 elements: str
             state:
                 description:
-                    - Control if the attribute must exists or not
+                    - Control whether the attribute must exists or not.
                 choices: [ "present", "absent" ]
                 default: present
                 type: str
@@ -201,7 +201,7 @@ options:
         type: str
     state:
         description:
-            - Control if the user must exists or not
+            - Control whether the user should exists or not.
         choices: [ "present", "absent" ]
         default: present
         type: str
@@ -307,11 +307,11 @@ user:
   returned: on success
   type: dict
 msg:
-  description: Message if it is the case
+  description: Message if it is the case.
   returned: always
   type: str
 changed:
-  description: Return True if the operation changed the client on the keycloak server, false otherwise.
+  description: Return C(true) if the operation changed the client on the keycloak server, C(false) otherwise.
   returned: always
   type: bool
 '''
