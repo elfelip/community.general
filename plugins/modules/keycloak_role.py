@@ -309,6 +309,9 @@ def main():
             kc.create_client_role(desired_role, clientid, realm)
             after_role = kc.get_client_role(name, clientid, realm)
 
+        if after_role['composite']:
+            after_role['composites'] = kc.get_role_composites(rolerep=after_role, clientid=clientid, realm=realm)
+
         result['end_state'] = after_role
 
         result['msg'] = 'Role {name} has been created'.format(name=name)
@@ -316,6 +319,22 @@ def main():
 
     else:
         if state == 'present':
+            compare_exclude = []
+            if 'composites' in desired_role and isinstance(desired_role['composites'], list) and len(desired_role['composites']) > 0:
+                composites = kc.get_role_composites(rolerep=before_role, clientid=clientid, realm=realm)
+                before_role['composites'] = []
+                for composite in composites:
+                    before_composite = {}
+                    if composite['clientRole']:
+                        composite_client = kc.get_client_by_id(id=composite['containerId'], realm=realm)
+                        before_composite['client_id'] = composite_client['clientId']
+                    else:
+                        before_composite['client_id'] = None
+                    before_composite['name'] = composite['name']
+                    before_composite['state'] = 'present'
+                    before_role['composites'].append(before_composite)
+            else:
+                compare_exclude.append('composites')
             # Process an update
 
             # no changes
@@ -341,6 +360,8 @@ def main():
             else:
                 kc.update_client_role(desired_role, clientid, realm)
                 after_role = kc.get_client_role(name, clientid, realm)
+            if after_role['composite']:
+                after_role['composites'] = kc.get_role_composites(rolerep=after_role, clientid=clientid, realm=realm)
 
             result['end_state'] = after_role
 
