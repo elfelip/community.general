@@ -707,6 +707,8 @@ files:
     maintainers: fynncfchen
   $modules/keycloak_role.py:
     maintainers: laurpaum
+  $modules/keycloak_user.py:
+    maintainers: elfelip
   $modules/keycloak_user_federation.py:
     maintainers: laurpaum
   $modules/keycloak_user_rolemapping.py:
@@ -934,7 +936,7 @@ files:
   $modules/pamd.py:
     maintainers: kevensen
   $modules/parted.py:
-    maintainers: ColOfAbRiX rosowiecki jake2184
+    maintainers: ColOfAbRiX jake2184
   $modules/pear.py:
     ignore: jle64
     labels: pear
@@ -981,7 +983,7 @@ files:
   $modules/proxmox:
     keywords: kvm libvirt proxmox qemu
     labels: proxmox virt
-    maintainers: $team_virt
+    maintainers: $team_virt UnderGreen
   $modules/proxmox.py:
     ignore: skvidal
     maintainers: UnderGreen

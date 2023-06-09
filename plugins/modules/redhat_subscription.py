@@ -122,7 +122,10 @@ options:
     auto_attach:
         description:
             - Upon successful registration, auto-consume available subscriptions
-            - Added in favor of deprecated autosubscribe in 2.5.
+            - |
+              Added in favor of the deprecated I(autosubscribe) option in
+              Ansible 2.5; please note that I(autosubscribe) will be removed in
+              community.general 9.0.0.
         type: bool
         aliases: [autosubscribe]
     activationkey:
@@ -140,8 +143,16 @@ options:
     pool:
         description:
             - |
-              Specify a subscription pool name to consume.  Regular expressions accepted. Use I(pool_ids) instead if
-              possible, as it is much faster. Mutually exclusive with I(pool_ids).
+              Specify a subscription pool name to consume.  Regular expressions accepted.
+              Mutually exclusive with I(pool_ids).
+            - |
+              Please use I(pool_ids) instead: specifying pool IDs is much faster,
+              and it avoids to match new pools that become available for the
+              system and are not explicitly wanted.  Also, this option does not
+              support quantities.
+            - |
+              This option is deprecated for the reasons mentioned above,
+              and it will be removed in community.general 10.0.0.
         default: '^$'
         type: str
     pool_ids:
@@ -1074,11 +1085,25 @@ def main():
             'server_port': {},
             'rhsm_baseurl': {},
             'rhsm_repo_ca_cert': {},
-            'auto_attach': {'aliases': ['autosubscribe'], 'type': 'bool'},
+            'auto_attach': {
+                'type': 'bool',
+                'aliases': ['autosubscribe'],
+                'deprecated_aliases': [
+                    {
+                        'name': 'autosubscribe',
+                        'version': '9.0.0',
+                        'collection_name': 'community.general',
+                    },
+                ],
+            },
             'activationkey': {'no_log': True},
             'org_id': {},
             'environment': {},
-            'pool': {'default': '^$'},
+            'pool': {
+                'default': '^$',
+                'removed_in_version': '10.0.0',
+                'removed_from_collection': 'community.general',
+            },
             'pool_ids': {'default': [], 'type': 'list', 'elements': 'raw'},
             'consumer_type': {},
             'consumer_name': {},
