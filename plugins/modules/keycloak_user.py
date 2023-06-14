@@ -31,7 +31,7 @@ options:
         type: str
     id:
         description:
-            - ID of the user on the keycloak server if known.
+            - ID of the user on the Keycloak server if known.
         type: str
     enabled:
         description:
@@ -39,7 +39,7 @@ options:
         type: bool
     email_verified:
         description:
-            - check the validity of user email.
+            - Check the validity of user email.
         default: false
         type: bool
         aliases:
@@ -53,7 +53,7 @@ options:
             - firstName
     last_name:
         description:
-            - User lastName.
+            - The user's last name.
         required: false
         type: str
         aliases:
@@ -79,7 +79,7 @@ options:
             - serviceAccountClientId
     client_consents:
         description:
-            - client Authenticator Type.
+            - Client Authenticator Type.
         type: list
         elements: dict
         default: []
@@ -140,7 +140,7 @@ options:
                 default: false
     required_actions:
         description:
-            - requiredActions user Auth.
+            - RequiredActions user Auth.
         default: []
         type: list
         elements: str
@@ -148,7 +148,7 @@ options:
             - requiredActions
     federated_identities:
         description:
-            - list of IDP of user.
+            - List of IDPs of user.
         default: []
         type: list
         elements: str
@@ -156,7 +156,7 @@ options:
             - federatedIdentities
     attributes:
         description:
-            - list user attributes.
+            - List of user attributes.
         required: false
         type: list
         elements: dict
@@ -284,6 +284,36 @@ EXAMPLES = '''
         - name: group1
           state: present
     state: present
+
+- name: Re-create a User
+  community.general.keycloak_user:
+    auth_keycloak_url: http://localhost:8080/auth
+    auth_username: admin
+    auth_password: password
+    realm: master
+    username: user1
+    firstName: user1
+    lastName: user1
+    email: user1
+    enabled: true
+    emailVerified: false
+    credentials:
+        - type: password
+          value: password
+          temporary: false
+    attributes:
+        - name: attr1
+          values:
+            - value1
+          state: present
+        - name: attr2
+          values:
+            - value2
+          state: absent
+    groups:
+        - name: group1
+          state: present
+    state: present
     force: true
 
 <<<<<<< HEAD
@@ -302,16 +332,25 @@ EXAMPLES = '''
 '''
 
 RETURN = '''
-user:
-  description: JSON representation for the user.
-  returned: on success
-  type: dict
 msg:
-  description: Message if it is the case.
+  description: Message as to what action was taken.
   returned: always
   type: str
+  sample: User f18c709c-03d6-11ee-970b-c74bf2721112 created
+proposed:
+  description: Representation of the proposed user.
+  returned: on success
+  type: dict
+existing:
+  description: Representation of the existing user.
+  returned: on success
+  type: dict
+end_state:
+  description: Representation of the user after module execution
+  returned: on success
+  type: dict
 changed:
-  description: Return C(true) if the operation changed the client on the keycloak server, C(false) otherwise.
+  description: Return C(true) if the operation changed the user on the keycloak server, C(false) otherwise.
   returned: always
   type: bool
 '''
@@ -442,7 +481,7 @@ def main():
         else:
             # Delete user
             kc.delete_user(user_id=before_user['id'], realm=realm)
-            result["msg"] = 'User %s deleted' % (before_user['id'])
+            result["msg"] = 'User %s deleted' % (before_user['username'])
             changed = True
 
     else:
@@ -465,6 +504,7 @@ def main():
                 module.exit_json(**result)
             # Create the user
             after_user = kc.create_user(userrep=desired_user, realm=realm)
+            result["msg"] = 'User %s created' % (desired_user['username'])
             # Add user ID to new representation
             desired_user['id'] = after_user["id"]
         else:
@@ -494,6 +534,10 @@ def main():
         # Get the user groups
         after_user["groups"] = kc.get_user_groups(user_id=desired_user["id"], realm=realm)
         result["end_state"] = after_user
+        if changed:
+            result["msg"] = 'User %s updated' % (desired_user['username'])
+        else:
+            result["msg"] = 'No changes made for user %s' % (desired_user['username'])
 
     result['changed'] = changed
     module.exit_json(**result)
