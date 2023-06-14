@@ -77,6 +77,42 @@ options:
         description:
             - A dict of key/value pairs to set as custom attributes for the role.
             - Values may be single values (e.g. a string) or a list of strings.
+    composite:
+        description:
+            - If V(true), the role is a composition of other realm and/or client role.
+        default: false
+        type: bool
+        version_added: 7.1.0
+    composites:
+        description:
+            - List of roles to include to the composite realm role.
+            - If the composite role is a client role, the C(clientId) (not ID of the client) must be specified.
+        default: []
+        type: list
+        elements: dict
+        version_added: 7.1.0
+        suboptions:
+            name:
+                description:
+                    - Name of the role. This can be the name of a REALM role or a client role.
+                type: str
+                required: true
+            client_id:
+                description:
+                    - Client ID if the role is a client role. Do not include this option for a REALM role.
+                    - Use the client ID you can see in the Keycloak console, not the technical ID of the client.
+                type: str
+                required: false
+                aliases:
+                    - clientId
+            state:
+                description:
+                    - Create the composite if present, remove it if absent.
+                type: str
+                choices:
+                    - present
+                    - absent
+                default: present
 
 extends_documentation_fragment:
     - community.general.keycloak
