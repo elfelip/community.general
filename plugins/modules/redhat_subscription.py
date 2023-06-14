@@ -122,7 +122,10 @@ options:
     auto_attach:
         description:
             - Upon successful registration, auto-consume available subscriptions
-            - Added in favor of deprecated autosubscribe in 2.5.
+            - |
+              Added in favor of the deprecated I(autosubscribe) option in
+              Ansible 2.5; please note that I(autosubscribe) will be removed in
+              community.general 9.0.0.
         type: bool
         aliases: [autosubscribe]
     activationkey:
@@ -140,8 +143,16 @@ options:
     pool:
         description:
             - |
-              Specify a subscription pool name to consume.  Regular expressions accepted. Use I(pool_ids) instead if
-              possible, as it is much faster. Mutually exclusive with I(pool_ids).
+              Specify a subscription pool name to consume.  Regular expressions accepted.
+              Mutually exclusive with I(pool_ids).
+            - |
+              Please use I(pool_ids) instead: specifying pool IDs is much faster,
+              and it avoids to match new pools that become available for the
+              system and are not explicitly wanted.  Also, this option does not
+              support quantities.
+            - |
+              This option is deprecated for the reasons mentioned above,
+              and it will be removed in community.general 10.0.0.
         default: '^$'
         type: str
     pool_ids:
@@ -323,32 +334,12 @@ from ansible.module_utils import distro
 SUBMAN_CMD = None
 
 
-class RegistrationBase(object):
+class Rhsm(object):
 
     REDHAT_REPO = "/etc/yum.repos.d/redhat.repo"
 
-    def __init__(self, module, username=None, password=None, token=None):
+    def __init__(self, module):
         self.module = module
-        self.username = username
-        self.password = password
-        self.token = token
-
-    def configure(self):
-        raise NotImplementedError("Must be implemented by a sub-class")
-
-    def enable(self):
-        # Remove any existing redhat.repo
-        if isfile(self.REDHAT_REPO):
-            unlink(self.REDHAT_REPO)
-
-    def register(self):
-        raise NotImplementedError("Must be implemented by a sub-class")
-
-    def unregister(self):
-        raise NotImplementedError("Must be implemented by a sub-class")
-
-    def unsubscribe(self):
-        raise NotImplementedError("Must be implemented by a sub-class")
 
     def update_plugin_conf(self, plugin, enabled=True):
         plugin_conf = '/etc/yum/pluginconf.d/%s.conf' % plugin
@@ -369,22 +360,15 @@ class RegistrationBase(object):
             fd.close()
             self.module.atomic_move(tmpfile, plugin_conf)
 
-    def subscribe(self, **kwargs):
-        raise NotImplementedError("Must be implemented by a sub-class")
-
-
-class Rhsm(RegistrationBase):
-    def __init__(self, module, username=None, password=None, token=None):
-        RegistrationBase.__init__(self, module, username, password, token)
-        self.module = module
-
     def enable(self):
         '''
             Enable the system to receive updates from subscription-manager.
             This involves updating affected yum plugins and removing any
             conflicting yum repositories.
         '''
-        RegistrationBase.enable(self)
+        # Remove any existing redhat.repo
+        if isfile(self.REDHAT_REPO):
+            unlink(self.REDHAT_REPO)
         self.update_plugin_conf('rhnplugin', False)
         self.update_plugin_conf('subscription-manager', True)
 
@@ -1056,9 +1040,6 @@ class SysPurpose(object):
 
 def main():
 
-    # Load RHSM configuration from file
-    rhsm = Rhsm(None)
-
     # Note: the default values for parameters are:
     # 'type': 'str', 'default': None, 'required': False
     # So there is no need to repeat these values for each parameter.
@@ -1074,11 +1055,25 @@ def main():
             'server_port': {},
             'rhsm_baseurl': {},
             'rhsm_repo_ca_cert': {},
-            'auto_attach': {'aliases': ['autosubscribe'], 'type': 'bool'},
+            'auto_attach': {
+                'type': 'bool',
+                'aliases': ['autosubscribe'],
+                'deprecated_aliases': [
+                    {
+                        'name': 'autosubscribe',
+                        'version': '9.0.0',
+                        'collection_name': 'community.general',
+                    },
+                ],
+            },
             'activationkey': {'no_log': True},
             'org_id': {},
             'environment': {},
-            'pool': {'default': '^$'},
+            'pool': {
+                'default': '^$',
+                'removed_in_version': '10.0.0',
+                'removed_from_collection': 'community.general',
+            },
             'pool_ids': {'default': [], 'type': 'list', 'elements': 'raw'},
             'consumer_type': {},
             'consumer_name': {},
@@ -1119,7 +1114,9 @@ def main():
             msg="Interacting with subscription-manager requires root permissions ('become: true')"
         )
 
-    rhsm.module = module
+    # Load RHSM configuration from file
+    rhsm = Rhsm(module)
+
     state = module.params['state']
     username = module.params['username']
     password = module.params['password']

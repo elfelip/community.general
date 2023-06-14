@@ -316,13 +316,8 @@ EXAMPLES = '''
     state: present
     force: true
 
-<<<<<<< HEAD
-- name: Remove User.
-    community.general.keycloak_user:
-=======
 - name: Remove User
   community.general.keycloak_user:
->>>>>>> inspq_keycloak_user_module
     auth_keycloak_url: http://localhost:8080/auth
     auth_username: admin
     auth_password: password
