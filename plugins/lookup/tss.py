@@ -16,7 +16,7 @@ description:
       Server using token authentication with O(username) and O(password) on
       the REST API at O(base_url).
     - When using self-signed certificates the environment variable
-      C(REQUESTS_CA_BUNDLE) can be set to a file containing the trusted certificates
+      E(REQUESTS_CA_BUNDLE) can be set to a file containing the trusted certificates
       (in C(.pem) format).
     - For example, C(export REQUESTS_CA_BUNDLE='/etc/ssl/certs/ca-bundle.trust.crt').
 requirements:
@@ -289,11 +289,15 @@ class TSSClient(object):
                 if file_download_path and os.path.isdir(file_download_path):
                     if i['isFile']:
                         try:
-                            with open(os.path.join(file_download_path, str(obj['id']) + "_" + i['slug']), "w") as f:
-                                f.write(i['itemValue'].text)
-                            i['itemValue'] = "*** Not Valid For Display ***"
+                            file_content = i['itemValue'].content
+                            with open(os.path.join(file_download_path, str(obj['id']) + "_" + i['slug']), "wb") as f:
+                                f.write(file_content)
                         except ValueError:
                             raise AnsibleOptionsError("Failed to download {0}".format(str(i['slug'])))
+                        except AttributeError:
+                            display.warning("Could not read file content for {0}".format(str(i['slug'])))
+                        finally:
+                            i['itemValue'] = "*** Not Valid For Display ***"
                 else:
                     raise AnsibleOptionsError("File download path does not exist")
             return obj
