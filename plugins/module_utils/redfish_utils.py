@@ -916,19 +916,19 @@ class RedfishUtils(object):
                         response = self.get_request(self.root_uri + data['Controllers'][u'@odata.id'])
                         if response['ret'] is False:
                             return response
-                        data = response['data']
+                        c_data = response['data']
 
-                        if data.get('Members') and data['Members']:
-                            response = self.get_request(self.root_uri + data['Members'][0][u'@odata.id'])
+                        if c_data.get('Members') and c_data['Members']:
+                            response = self.get_request(self.root_uri + c_data['Members'][0][u'@odata.id'])
                             if response['ret'] is False:
                                 return response
-                            data = response['data']
+                            member_data = response['data']
 
-                            if data:
-                                if 'Name' in data:
-                                    controller_name = data['Name']
+                            if member_data:
+                                if 'Name' in member_data:
+                                    controller_name = member_data['Name']
                                 else:
-                                    controller_id = data.get('Id', '1')
+                                    controller_id = member_data.get('Id', '1')
                                     controller_name = 'Controller %s' % controller_id
                     volume_results = []
                     volume_list = []
@@ -1140,7 +1140,8 @@ class RedfishUtils(object):
         user_list = []
         users_results = []
         # Get these entries, but does not fail if not found
-        properties = ['Id', 'Name', 'UserName', 'RoleId', 'Locked', 'Enabled']
+        properties = ['Id', 'Name', 'UserName', 'RoleId', 'Locked', 'Enabled',
+                      'AccountTypes', 'OEMAccountTypes']
 
         response = self.get_request(self.root_uri + self.accounts_uri)
         if response['ret'] is False:
@@ -1191,6 +1192,10 @@ class RedfishUtils(object):
             payload['Password'] = user.get('account_password')
         if user.get('account_roleid'):
             payload['RoleId'] = user.get('account_roleid')
+        if user.get('account_accounttypes'):
+            payload['AccountTypes'] = user.get('account_accounttypes')
+        if user.get('account_oemaccounttypes'):
+            payload['OEMAccountTypes'] = user.get('account_oemaccounttypes')
         return self.patch_request(self.root_uri + uri, payload, check_pyld=True)
 
     def add_user(self, user):
@@ -1221,6 +1226,10 @@ class RedfishUtils(object):
             payload['Password'] = user.get('account_password')
         if user.get('account_roleid'):
             payload['RoleId'] = user.get('account_roleid')
+        if user.get('account_accounttypes'):
+            payload['AccountTypes'] = user.get('account_accounttypes')
+        if user.get('account_oemaccounttypes'):
+            payload['OEMAccountTypes'] = user.get('account_oemaccounttypes')
         if user.get('account_id'):
             payload['Id'] = user.get('account_id')
 
@@ -1490,29 +1499,37 @@ class RedfishUtils(object):
 
     def _software_inventory(self, uri):
         result = {}
-        response = self.get_request(self.root_uri + uri)
-        if response['ret'] is False:
-            return response
-        result['ret'] = True
-        data = response['data']
-
         result['entries'] = []
-        for member in data[u'Members']:
-            uri = self.root_uri + member[u'@odata.id']
-            # Get details for each software or firmware member
-            response = self.get_request(uri)
+
+        while uri:
+            response = self.get_request(self.root_uri + uri)
             if response['ret'] is False:
                 return response
             result['ret'] = True
+
             data = response['data']
-            software = {}
-            # Get these standard properties if present
-            for key in ['Name', 'Id', 'Status', 'Version', 'Updateable',
-                        'SoftwareId', 'LowestSupportedVersion', 'Manufacturer',
-                        'ReleaseDate']:
-                if key in data:
-                    software[key] = data.get(key)
-            result['entries'].append(software)
+            if data.get('Members@odata.nextLink'):
+                uri = data.get('Members@odata.nextLink')
+            else:
+                uri = None
+
+            for member in data[u'Members']:
+                fw_uri = self.root_uri + member[u'@odata.id']
+                # Get details for each software or firmware member
+                response = self.get_request(fw_uri)
+                if response['ret'] is False:
+                    return response
+                result['ret'] = True
+                data = response['data']
+                software = {}
+                # Get these standard properties if present
+                for key in ['Name', 'Id', 'Status', 'Version', 'Updateable',
+                            'SoftwareId', 'LowestSupportedVersion', 'Manufacturer',
+                            'ReleaseDate']:
+                    if key in data:
+                        software[key] = data.get(key)
+                result['entries'].append(software)
+
         return result
 
     def get_firmware_inventory(self):
@@ -2287,7 +2304,7 @@ class RedfishUtils(object):
         key = "Processors"
         # Get these entries, but does not fail if not found
         properties = ['Id', 'Name', 'Manufacturer', 'Model', 'MaxSpeedMHz',
-                      'TotalCores', 'TotalThreads', 'Status']
+                      'ProcessorArchitecture', 'TotalCores', 'TotalThreads', 'Status']
 
         # Search for 'key' entry and extract URI from it
         response = self.get_request(self.root_uri + systems_uri)

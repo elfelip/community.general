@@ -183,6 +183,10 @@ options:
         are used when the values are not explicitly specified by the user. The new default is V(no_defaults),
         which makes sure these options have no defaults.
       - This affects the O(disk), O(cores), O(cpus), O(memory), O(onboot), O(swap), and O(cpuunits) options.
+      - >
+        This parameter is now B(deprecated) and it will be removed in community.general 10.0.0.
+        By then, the module's behavior should be to not set default values, equivalent to V(no_defaults).
+        If a consistent set of defaults is needed, the playbook or role should be responsible for setting it.
     type: str
     default: no_defaults
     choices:
@@ -209,6 +213,8 @@ options:
     default: opportunistic
     version_added: 4.3.0
 author: Sergei Antipov (@UnderGreen)
+seealso:
+  - module: community.general.proxmox_vm_info
 extends_documentation_fragment:
   - community.general.proxmox.documentation
   - community.general.proxmox.selection
@@ -444,7 +450,7 @@ class ProxmoxLxcAnsible(ProxmoxAnsible):
         """Check if the specified container is a template."""
         proxmox_node = self.proxmox_api.nodes(node)
         config = getattr(proxmox_node, VZ_TYPE)(vmid).config.get()
-        return config['template']
+        return config.get('template', False)
 
     def create_instance(self, vmid, node, disk, storage, cpus, memory, swap, timeout, clone, **kwargs):
 
@@ -621,7 +627,8 @@ def main():
         description=dict(type='str'),
         hookscript=dict(type='str'),
         timezone=dict(type='str'),
-        proxmox_default_behavior=dict(type='str', default='no_defaults', choices=['compatibility', 'no_defaults']),
+        proxmox_default_behavior=dict(type='str', default='no_defaults', choices=['compatibility', 'no_defaults'],
+                                      removed_in_version='9.0.0', removed_from_collection='community.general'),
         clone=dict(type='int'),
         clone_type=dict(default='opportunistic', choices=['full', 'linked', 'opportunistic']),
         tags=dict(type='list', elements='str')

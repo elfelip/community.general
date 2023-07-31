@@ -150,6 +150,12 @@ plugin_routing:
         warning_text: You are using an internal name to access the community.general.airbrake_deployment
           modules. This has never been supported or documented, and will stop working
           in community.general 9.0.0.
+    stackdriver:
+      deprecation:
+        removal_version: 9.0.0
+        warning_text: >
+          This module relies on HTTPS APIs that do not exist anymore, and any new development in the
+          direction of providing an alternative should happen in the context of the google.cloud collection.
     system.aix_devices:
       redirect: community.general.aix_devices
       deprecation:
@@ -798,6 +804,10 @@ plugin_routing:
         warning_text: You are using an internal name to access the community.general.flatpak_remote
           modules. This has never been supported or documented, and will stop working
           in community.general 9.0.0.
+    flowdock:
+      deprecation:
+        removal_version: 9.0.0
+        warning_text: This module relies on HTTPS APIs that do not exist anymore and there is no clear path to update.
     notification.flowdock:
       redirect: community.general.flowdock
       deprecation:
@@ -4433,6 +4443,10 @@ plugin_routing:
         warning_text: You are using an internal name to access the community.general.wdc_redfish_info
           modules. This has never been supported or documented, and will stop working
           in community.general 9.0.0.
+    webfaction_app:
+      deprecation:
+        removal_version: 9.0.0
+        warning_text: This module relies on HTTPS APIs that do not exist anymore and there is no clear path to update.
     cloud.webfaction.webfaction_app:
       redirect: community.general.webfaction_app
       deprecation:
@@ -4440,6 +4454,10 @@ plugin_routing:
         warning_text: You are using an internal name to access the community.general.webfaction_app
           modules. This has never been supported or documented, and will stop working
           in community.general 9.0.0.
+    webfaction_db:
+      deprecation:
+        removal_version: 9.0.0
+        warning_text: This module relies on HTTPS APIs that do not exist anymore and there is no clear path to update.
     cloud.webfaction.webfaction_db:
       redirect: community.general.webfaction_db
       deprecation:
@@ -4447,6 +4465,10 @@ plugin_routing:
         warning_text: You are using an internal name to access the community.general.webfaction_db
           modules. This has never been supported or documented, and will stop working
           in community.general 9.0.0.
+    webfaction_domain:
+      deprecation:
+        removal_version: 9.0.0
+        warning_text: This module relies on HTTPS APIs that do not exist anymore and there is no clear path to update.
     cloud.webfaction.webfaction_domain:
       redirect: community.general.webfaction_domain
       deprecation:
@@ -4454,6 +4476,10 @@ plugin_routing:
         warning_text: You are using an internal name to access the community.general.webfaction_domain
           modules. This has never been supported or documented, and will stop working
           in community.general 9.0.0.
+    webfaction_mailbox:
+      deprecation:
+        removal_version: 9.0.0
+        warning_text: This module relies on HTTPS APIs that do not exist anymore and there is no clear path to update.
     cloud.webfaction.webfaction_mailbox:
       redirect: community.general.webfaction_mailbox
       deprecation:
@@ -4461,6 +4487,10 @@ plugin_routing:
         warning_text: You are using an internal name to access the community.general.webfaction_mailbox
           modules. This has never been supported or documented, and will stop working
           in community.general 9.0.0.
+    webfaction_site:
+      deprecation:
+        removal_version: 9.0.0
+        warning_text: This module relies on HTTPS APIs that do not exist anymore and there is no clear path to update.
     cloud.webfaction.webfaction_site:
       redirect: community.general.webfaction_site
       deprecation:

@@ -7,12 +7,6 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-# (TODO: remove next line!)
-import atexit  # noqa: F401, pylint: disable=unused-import
-# (TODO: remove next line!)
-import time  # noqa: F401, pylint: disable=unused-import
-# (TODO: remove next line!)
-import re  # noqa: F401, pylint: disable=unused-import
 import traceback
 
 PROXMOXER_IMP_ERR = None
@@ -26,8 +20,6 @@ except ImportError:
 
 
 from ansible.module_utils.basic import env_fallback, missing_required_lib
-# (TODO: remove next line!)
-from ansible.module_utils.common.text.converters import to_native  # noqa: F401, pylint: disable=unused-import
 from ansible_collections.community.general.plugins.module_utils.version import LooseVersion
 
 
@@ -80,8 +72,8 @@ class ProxmoxAnsible(object):
             module.fail_json(msg=missing_required_lib('proxmoxer'), exception=PROXMOXER_IMP_ERR)
 
         self.module = module
-        self.proxmox_api = self._connect()
         self.proxmoxer_version = proxmoxer_version
+        self.proxmox_api = self._connect()
         # Test token validity
         try:
             self.proxmox_api.version.get()
@@ -100,6 +92,8 @@ class ProxmoxAnsible(object):
         if api_password:
             auth_args['password'] = api_password
         else:
+            if self.proxmoxer_version < LooseVersion('1.1.0'):
+                self.module.fail_json('Using "token_name" and "token_value" require proxmoxer>=1.1.0')
             auth_args['token_name'] = api_token_id
             auth_args['token_value'] = api_token_secret
 
